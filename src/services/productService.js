@@ -2,7 +2,7 @@ import prisma from '../config/db.js';
 import generateProductId from '../utils/idGenerator.js';
 
 export const addProduct = async (data) => {
-    const { name, category, subCategory, datasheetLink, description, packageInfo, ...rest } = data;
+    const { source, name, mainCategory, category, subCategory, datasheetLink, description, packageInfo, ...rest } = data;
 
     let specifications = { ...rest };
     if (packageInfo) {
@@ -12,12 +12,15 @@ export const addProduct = async (data) => {
     return await prisma.product.create({
         data: {
             id: generateProductId(),
-            name,
-            category,
-            subCategory,
-            datasheetLink,
-            description,
-            specifications
+            source: source || null,
+            name: name || "-",
+            mainCategory: mainCategory || "-",
+            category: category || "-",
+            subCategory: subCategory || null,
+            datasheetLink: datasheetLink || null,
+            description: description || null,
+            specifications: specifications
         }
     });
 };
+

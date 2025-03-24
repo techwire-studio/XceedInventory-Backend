@@ -10,9 +10,10 @@ datasource db {
 model Product {
   id             String   @id 
   source         String?
-  category       String
+  mainCategory   String?
+  category       String?
   subCategory    String?
-  name           String
+  name           String?
   datasheetLink  String?
   description    String?
   specifications Json?  

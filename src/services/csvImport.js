@@ -30,6 +30,7 @@ async function importCSV(filePath, importMode) {
             .on('data', (row) => {
                 try {
                     const source = row['Source']?.trim() || null;
+                    const mainCategory = row['Main Category']?.trim() || "-";
                     const category = row['Category']?.trim() || "-";
                     const subCategory = row['Sub-category']?.trim() || null;
                     const name = row['Product Name/Part No.']?.trim() || "-";
@@ -39,14 +40,14 @@ async function importCSV(filePath, importMode) {
                     const specifications = {};
                     for (const [key, value] of Object.entries(row)) {
                         if (![
-                            'Source', 'Category', 'Sub-category', 'Product Name/Part No.',
+                            'Source', 'Main Category', 'Category', 'Sub-category', 'Product Name/Part No.',
                             'Datasheet Link (PDF)', 'Description'
                         ].includes(key) && value?.trim() !== "") {
                             specifications[key] = value.trim();
                         }
                     }
 
-                    productsToProcess.push({ source, category, subCategory, name, datasheetLink, description, specifications });
+                    productsToProcess.push({ source, mainCategory, category, subCategory, name, datasheetLink, description, specifications });
                     names.add(name);
                 } catch (error) {
                     console.error("Error processing row:", error);
