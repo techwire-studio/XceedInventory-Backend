@@ -6,6 +6,7 @@ import {
     updateOrderStatus,
     updateOrderDetails
 } from "../controllers/orderController.js";
+import { authenticateAdmin } from "../middleware/authMiddleware.js"; // Import the authentication middleware
 
 const orderLimiter = rateLimit({
     windowMs: 5 * 60 * 1000, // 5 minutes
@@ -17,8 +18,9 @@ const orderLimiter = rateLimit({
 const router = express.Router();
 
 router.post("/", orderLimiter, createOrder);
-router.get("/", getOrders);
-router.patch("/:orderId/status", updateOrderStatus);
-router.patch("/:orderId/details", orderLimiter, updateOrderDetails);
+
+router.get("/", authenticateAdmin, getOrders);
+router.patch("/:orderId/status", authenticateAdmin, updateOrderStatus);
+router.patch("/:orderId/details", authenticateAdmin, orderLimiter, updateOrderDetails);
 
 export default router;

@@ -37,6 +37,10 @@ model Order {
   updatedAt      DateTime @updatedAt
   @@index([status])
 }
-
+model Admin {
+  id       Int     @id @default(autoincrement())
+  username String  @unique
+  password String  // Hashed password
+}
 
 
