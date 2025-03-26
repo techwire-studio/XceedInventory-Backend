@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 import orderRoutes from "./routes/orderRoutes.js";
 
 dotenv.config();
-
+app.use(cors());
 const app = express();
 app.use(express.json());
 
