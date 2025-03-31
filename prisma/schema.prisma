@@ -17,6 +17,7 @@ model Product {
   datasheetLink  String?
   description    String?
   specifications Json?  
+  createdAt      DateTime @default(now()) // Automatically stores creation time
 }
 model Order {
   id             String   @id @default(cuid())
@@ -38,9 +39,10 @@ model Order {
   @@index([status])
 }
 model Admin {
-  id       Int     @id @default(autoincrement())
-  username String  @unique
-  password String  // Hashed password
+    id        String  @id @default(uuid())
+    username  String  @unique
+    password  String
+    superAdmin Boolean @default(false)
 }
 
 
