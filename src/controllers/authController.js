@@ -18,21 +18,24 @@ export const adminLogin = async (req, res) => {
             return res.status(401).json({ error: "Invalid credentials" });
         }
 
-        const token = jwt.sign({ id: admin.id, username: admin.username }, SECRET_KEY, { expiresIn: "2h" });
+        const token = jwt.sign(
+            { id: admin.id, username: admin.username, superAdmin: admin.superAdmin },
+            SECRET_KEY,
+            { expiresIn: "2h" }
+        );
 
         res.cookie("token", token, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === "production", // Secure in production
+            secure: process.env.NODE_ENV === "production",
             sameSite: "None",
-            maxAge: 2 * 60 * 60 * 1000 // 2 hours
+            maxAge: 2 * 60 * 60 * 1000
         });
 
-        res.json({ message: "Login successful" });
+        res.json({ message: "Login successful", role: admin.superAdmin ? "Super Admin" : "Admin" });
     } catch (error) {
         res.status(500).json({ error: "Authentication failed", details: error.message });
     }
 };
-
 
 export const adminLogout = (req, res) => {
     res.clearCookie("token", {
