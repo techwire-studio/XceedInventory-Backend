@@ -31,7 +31,11 @@ export const adminLogin = async (req, res) => {
             maxAge: 2 * 60 * 60 * 1000
         });
 
-        res.json({ message: "Login successful", role: admin.superAdmin ? "Super Admin" : "Admin" });
+        res.json({
+            message: "Login successful",
+            username: admin.username,
+            role: admin.superAdmin ? "Super Admin" : "Admin"
+        });
     } catch (error) {
         res.status(500).json({ error: "Authentication failed", details: error.message });
     }
