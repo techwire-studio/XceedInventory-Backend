@@ -32,8 +32,8 @@ export const createOrder = async (req, res) => {
             return res.status(400).json({ error: 'Phone number must be 10 digits, optionally preceded by a country code and space.' });
         }
 
-        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-            return res.status(400).json({ error: 'A valid email is required.' });
+        if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            return res.status(400).json({ error: 'Invalid email format.' });
         }
 
         if (!products || !Array.isArray(products) || products.length === 0) {
