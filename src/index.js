@@ -8,7 +8,13 @@ import cors from 'cors';
 
 dotenv.config();
 const app = express();
-app.use(cors());
+
+app.use(cors({
+  origin: 'http://localhost:5173', // or whatever your frontend URL is
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Accept']
+}));
 app.use(express.json());
 app.use(cookieParser());
 // Routes

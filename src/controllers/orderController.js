@@ -32,7 +32,7 @@ export const createOrder = async (req, res) => {
         // Check if all product IDs exist
         const existingProductIds = existingProducts.map(p => p.id);
         const missingProducts = productIds.filter(id => !existingProductIds.includes(id));
-
+        console.log(products)
         if (missingProducts.length > 0) {
             return res.status(400).json({ error: 'Some product IDs do not exist:', missingProducts });
         }
@@ -175,3 +175,15 @@ export const getOrders = async (req, res) => {
     }
 };
 
+// Fetch the completed orders
+export const getCompletedOrders = async (req, res) => {
+    try {
+        const completedOrders = await prisma.order.findMany({
+            where: { status: "Completed" },
+            orderBy: { createdAt: "desc"}
+        })
+        res.json(completedOrders);
+    }catch(error){
+        res.json(500).json({error: "Failed to fetch completed orders."})
+    }
+}

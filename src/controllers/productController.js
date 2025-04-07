@@ -21,9 +21,9 @@ export const uploadCSV = async (req, res) => {
     try {
         await importCSV(req.file.path, importMode);
         // Delete file after successful import
-        fs.unlink(req.file.path, (err) => {
-            if (err) console.error("Error deleting file:", err);
-        });
+        // fs.unlink(req.file.path, (err) => {
+        //     if (err) console.error("Error deleting file:", err);
+        // });
         res.json({ message: `CSV imported successfully in ${importMode} mode!` });
     } catch (error) {
         res.status(500).json({ error: "Import failed", details: error.message });

@@ -26,7 +26,7 @@ export const adminLogin = async (req, res) => {
 
         res.cookie("token", token, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
+            secure: true,
             sameSite: "None",
             maxAge: 2 * 60 * 60 * 1000
         });
@@ -49,3 +49,21 @@ export const adminLogout = (req, res) => {
     });
     res.json({ message: "Logout successful" });
 };
+
+export const verifyToken = (req, res) => {
+    const token = req.cookies?.token;
+    console.log(token)
+    let username;
+    let role;
+
+    if(!token){
+        return res.status(403).json({ error: "Access denied. No token provided." });
+    }
+    jwt.verify(token, SECRET_KEY, (err, decoded) => {
+        if (err) {
+            return res.status(403).json({ error: "Invalid token" });
+        }
+        username = decoded.username;
+    })
+    res.json({ username, message: "Token is valid" });
+}

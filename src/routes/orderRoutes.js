@@ -4,7 +4,8 @@ import {
     createOrder,
     getOrders,
     updateOrderStatus,
-    updateOrderDetails
+    updateOrderDetails,
+    getCompletedOrders
 } from "../controllers/orderController.js";
 import { authenticateAdmin } from "../middleware/authMiddleware.js"; // Import the authentication middleware
 
@@ -22,5 +23,6 @@ router.post("/", orderLimiter, createOrder);
 router.get("/", authenticateAdmin, getOrders);
 router.patch("/:orderId/status", authenticateAdmin, updateOrderStatus);
 router.patch("/:orderId/details", authenticateAdmin, orderLimiter, updateOrderDetails);
+router.get('/completed', authenticateAdmin, getCompletedOrders)
 
 export default router;
