@@ -164,7 +164,7 @@ export const updateOrderDetails = async (req, res) => {
             return res.status(400).json({ error: 'Email must be a valid format.' });
         }
 
-        if (trackingId !== undefined && (typeof trackingId !== 'string' || trackingId.trim() === '')) {
+        if (trackingId !== null && trackingId !== undefined && (typeof trackingId !== 'string' || trackingId.trim() === '')) {
             return res.status(400).json({ error: 'Tracking ID must be a non-empty string if provided.' });
         }
 
@@ -187,20 +187,9 @@ export const updateOrderDetails = async (req, res) => {
         if (totalAmount !== undefined && (isNaN(Number(totalAmount)) || Number(totalAmount) < 0)) {
             return res.status(400).json({ error: 'Total amount must be a non-negative number if provided.' });
         }
-
-        // Products validation
-        if (products !== undefined) {
-            if (!Array.isArray(products)) {
-                return res.status(400).json({ error: 'Products must be an array if provided.' });
-            }
-
-            for (const product of products) {
-                if (!product.productId || typeof product.productId !== 'string' || product.productId.trim() === '') {
-                    return res.status(400).json({ error: 'Each product must have a valid productId.' });
-                }
-            }
+        if (products !== null && products !== undefined && !Array.isArray(products)) {
+            return res.status(400).json({ error: 'Products must be an array if provided.' });
         }
-
         const existingOrder = await prisma.order.findUnique({
             where: { orderId },
             select: {
@@ -214,8 +203,17 @@ export const updateOrderDetails = async (req, res) => {
 
         let mergedProducts = existingOrder.products;
 
-        if (products && Array.isArray(products)) {
-            // Validate that product IDs exist in the database
+        if (products !== undefined) {
+            if (!Array.isArray(products)) {
+                return res.status(400).json({ error: 'Products must be an array if provided.' });
+            }
+
+            for (const product of products) {
+                if (!product.productId || typeof product.productId !== 'string' || product.productId.trim() === '') {
+                    return res.status(400).json({ error: 'Each product must have a valid productId.' });
+                }
+            }
+
             if (products.length > 0) {
                 const productIds = products.map(p => p.productId);
                 const existingProducts = await prisma.product.findMany({
@@ -231,29 +229,39 @@ export const updateOrderDetails = async (req, res) => {
                         missingProducts
                     });
                 }
-            }
 
-            const existingMap = new Map();
-            mergedProducts.forEach(p => existingMap.set(p.productId, p));
+                // Validate or fetch product names
+                const validatedProducts = products.map((p) => {
+                    const matchingProduct = existingProducts.find(prod => prod.id === p.productId);
+                    if (!matchingProduct) return p;
 
-            for (const newProduct of products) {
-                if (existingMap.has(newProduct.productId)) {
-                    // Merge product fields
-                    const updated = {
-                        ...existingMap.get(newProduct.productId),
-                        ...newProduct
-                    };
-                    existingMap.set(newProduct.productId, updated);
-                } else {
-                    // New product, add it
-                    existingMap.set(newProduct.productId, newProduct);
+                    if (p.productName && p.productName !== matchingProduct.name) {
+                        throw new Error(`Product name mismatch for ID ${p.productId}. Expected: ${matchingProduct.name}`);
+                    }
+
+                    return { ...p, productName: matchingProduct.name };
+                });
+
+                // Merge with existing order products
+                const existingMap = new Map();
+                mergedProducts.forEach(p => existingMap.set(p.productId, p));
+
+                for (const newProduct of validatedProducts) {
+                    if (existingMap.has(newProduct.productId)) {
+                        const updated = {
+                            ...existingMap.get(newProduct.productId),
+                            ...newProduct
+                        };
+                        existingMap.set(newProduct.productId, updated);
+                    } else {
+                        existingMap.set(newProduct.productId, newProduct);
+                    }
                 }
-            }
 
-            mergedProducts = Array.from(existingMap.values());
+                mergedProducts = Array.from(existingMap.values());
+            }
         }
 
-        // Create an update data object with only defined fields
         const updateData = {};
         if (firstName !== undefined) updateData.firstName = firstName;
         if (lastName !== undefined) updateData.lastName = lastName;
@@ -272,7 +280,6 @@ export const updateOrderDetails = async (req, res) => {
             data: updateData
         });
 
-        // Backup updated order to Firebase
         backupOrderToFirebase(updatedOrder);
 
         res.status(200).json({ message: "Order updated successfully", order: updatedOrder });
