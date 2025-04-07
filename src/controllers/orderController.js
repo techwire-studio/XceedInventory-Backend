@@ -17,27 +17,52 @@ export const createOrder = async (req, res) => {
     try {
         const { firstName, lastName, phoneNumber, products, email } = req.body;
 
-        if (!firstName || !lastName || !phoneNumber || !products || products.length === 0) {
-            return res.status(400).json({ error: 'First name, last name, phone number, and products are required.' });
+        // ---------------------
+        // Input Validations
+        // ---------------------
+        if (!firstName || typeof firstName !== 'string' || !/^[A-Za-z]+$/.test(firstName.trim())) {
+            return res.status(400).json({ error: 'First name is required and must contain only alphabets.' });
         }
 
-        // Extract product IDs from request
+        if (lastName && (typeof lastName !== 'string' || !/^[A-Za-z]+$/.test(lastName.trim()))) {
+            return res.status(400).json({ error: 'Last name must contain only alphabets if provided.' });
+        }
+
+        if (!phoneNumber || !/^(\+\d+ )?\d{10}$/.test(phoneNumber)) {
+            return res.status(400).json({ error: 'Phone number must be 10 digits, optionally preceded by a country code and space.' });
+        }
+
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            return res.status(400).json({ error: 'A valid email is required.' });
+        }
+
+        if (!products || !Array.isArray(products) || products.length === 0) {
+            return res.status(400).json({ error: 'Products must be a non-empty array.' });
+        }
+
         const productIds = products.map(p => p.productId);
 
-        // Fetch products from DB
+        if (productIds.some(id => typeof id !== 'string' || id.trim() === '')) {
+            return res.status(400).json({ error: 'Each product must have a valid productId.' });
+        }
+
+        // ---------------------
+        // Product Validation
+        // ---------------------
         const existingProducts = await prisma.product.findMany({
             where: { id: { in: productIds } }
         });
 
-        // Check if all product IDs exist
         const existingProductIds = existingProducts.map(p => p.id);
         const missingProducts = productIds.filter(id => !existingProductIds.includes(id));
-        console.log(products)
+
         if (missingProducts.length > 0) {
-            return res.status(400).json({ error: 'Some product IDs do not exist:', missingProducts });
+            return res.status(400).json({
+                error: 'Some product IDs do not exist.',
+                missingProducts
+            });
         }
 
-        // Validate product names
         const updatedProducts = products.map((p) => {
             const matchingProduct = existingProducts.find(prod => prod.id === p.productId);
             if (!matchingProduct) return p;
@@ -49,12 +74,14 @@ export const createOrder = async (req, res) => {
             return { ...p, productName: matchingProduct.name };
         });
 
-        // Create order in PostgreSQL
+        // ---------------------
+        // Create Order
+        // ---------------------
         const newOrder = await prisma.order.create({
             data: {
                 orderId: `${Math.floor(1000 + Math.random() * 9000)}`,
                 firstName,
-                lastName,
+                lastName: lastName || null,
                 phoneNumber,
                 email,
                 products: updatedProducts,
@@ -62,7 +89,6 @@ export const createOrder = async (req, res) => {
             }
         });
 
-        // Backup to Firebase (async, does not affect PostgreSQL operation)
         backupOrderToFirebase(newOrder);
 
         res.status(201).json(newOrder);
@@ -119,49 +145,141 @@ export const updateOrderDetails = async (req, res) => {
             products
         } = req.body;
 
-        const existingOrder = await prisma.order.findUnique({ where: { orderId } });
+        // ---------------------
+        // Input Validations
+        // ---------------------
+        if (firstName !== undefined && (typeof firstName !== 'string' || !/^[A-Za-z]+$/.test(firstName.trim()))) {
+            return res.status(400).json({ error: 'First name must contain only alphabets.' });
+        }
+
+        if (lastName !== undefined && (typeof lastName !== 'string' || !/^[A-Za-z]+$/.test(lastName.trim()))) {
+            return res.status(400).json({ error: 'Last name must contain only alphabets.' });
+        }
+
+        if (phoneNumber !== undefined && !/^(\+\d+ )?\d{10}$/.test(phoneNumber)) {
+            return res.status(400).json({ error: 'Phone number must be 10 digits, optionally preceded by a country code and space.' });
+        }
+
+        if (email !== undefined && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            return res.status(400).json({ error: 'Email must be a valid format.' });
+        }
+
+        if (trackingId !== undefined && (typeof trackingId !== 'string' || trackingId.trim() === '')) {
+            return res.status(400).json({ error: 'Tracking ID must be a non-empty string if provided.' });
+        }
+
+        if (invoiceNumber !== undefined && (typeof invoiceNumber !== 'string' || invoiceNumber.trim() === '')) {
+            return res.status(400).json({ error: 'Invoice number must be a non-empty string if provided.' });
+        }
+
+        if (message !== undefined && typeof message !== 'string') {
+            return res.status(400).json({ error: 'Message must be a string if provided.' });
+        }
+
+        if (shippingAddress !== undefined && (typeof shippingAddress !== 'object' || shippingAddress === null)) {
+            return res.status(400).json({ error: 'Shipping address must be an object if provided.' });
+        }
+
+        if (billingAddress !== undefined && (typeof billingAddress !== 'object' || billingAddress === null)) {
+            return res.status(400).json({ error: 'Billing address must be an object if provided.' });
+        }
+
+        if (totalAmount !== undefined && (isNaN(Number(totalAmount)) || Number(totalAmount) < 0)) {
+            return res.status(400).json({ error: 'Total amount must be a non-negative number if provided.' });
+        }
+
+        // Products validation
+        if (products !== undefined) {
+            if (!Array.isArray(products)) {
+                return res.status(400).json({ error: 'Products must be an array if provided.' });
+            }
+
+            for (const product of products) {
+                if (!product.productId || typeof product.productId !== 'string' || product.productId.trim() === '') {
+                    return res.status(400).json({ error: 'Each product must have a valid productId.' });
+                }
+            }
+        }
+
+        const existingOrder = await prisma.order.findUnique({
+            where: { orderId },
+            select: {
+                products: true
+            }
+        });
 
         if (!existingOrder) {
             return res.status(404).json({ error: "Order not found." });
         }
 
-        // Ensure products are only updated (not added)
-        if (products) {
-            const existingProductIds = existingOrder.products.map(p => p.productId);
-            const updatedProductIds = products.map(p => p.productId);
+        let mergedProducts = existingOrder.products;
 
-            // Prevent adding new products
-            const newProducts = updatedProductIds.filter(id => !existingProductIds.includes(id));
-            if (newProducts.length > 0) {
-                return res.status(400).json({ error: "Adding new products is not allowed." });
+        if (products && Array.isArray(products)) {
+            // Validate that product IDs exist in the database
+            if (products.length > 0) {
+                const productIds = products.map(p => p.productId);
+                const existingProducts = await prisma.product.findMany({
+                    where: { id: { in: productIds } }
+                });
+
+                const existingProductIds = existingProducts.map(p => p.id);
+                const missingProducts = productIds.filter(id => !existingProductIds.includes(id));
+
+                if (missingProducts.length > 0) {
+                    return res.status(400).json({
+                        error: 'Some product IDs do not exist.',
+                        missingProducts
+                    });
+                }
             }
+
+            const existingMap = new Map();
+            mergedProducts.forEach(p => existingMap.set(p.productId, p));
+
+            for (const newProduct of products) {
+                if (existingMap.has(newProduct.productId)) {
+                    // Merge product fields
+                    const updated = {
+                        ...existingMap.get(newProduct.productId),
+                        ...newProduct
+                    };
+                    existingMap.set(newProduct.productId, updated);
+                } else {
+                    // New product, add it
+                    existingMap.set(newProduct.productId, newProduct);
+                }
+            }
+
+            mergedProducts = Array.from(existingMap.values());
         }
 
-        // Update order in PostgreSQL
+        // Create an update data object with only defined fields
+        const updateData = {};
+        if (firstName !== undefined) updateData.firstName = firstName;
+        if (lastName !== undefined) updateData.lastName = lastName;
+        if (email !== undefined) updateData.email = email;
+        if (phoneNumber !== undefined) updateData.phoneNumber = phoneNumber;
+        if (trackingId !== undefined) updateData.trackingId = trackingId;
+        if (invoiceNumber !== undefined) updateData.invoiceNumber = invoiceNumber;
+        if (message !== undefined) updateData.message = message;
+        if (shippingAddress !== undefined) updateData.shippingAddress = shippingAddress;
+        if (billingAddress !== undefined) updateData.billingAddress = billingAddress;
+        if (totalAmount !== undefined) updateData.totalAmount = totalAmount;
+        if (products !== undefined) updateData.products = mergedProducts;
+
         const updatedOrder = await prisma.order.update({
             where: { orderId },
-            data: {
-                firstName,
-                lastName,
-                email,
-                phoneNumber,
-                trackingId,
-                invoiceNumber,
-                message,
-                shippingAddress,
-                billingAddress: billingAddress?.sameAsShipping ? shippingAddress : billingAddress,
-                totalAmount,
-                products
-            },
+            data: updateData
         });
 
         // Backup updated order to Firebase
         backupOrderToFirebase(updatedOrder);
 
-        res.json(updatedOrder);
+        res.status(200).json({ message: "Order updated successfully", order: updatedOrder });
+
     } catch (error) {
         console.error(error);
-        res.status(500).json({ error: "Failed to update order details." });
+        res.status(500).json({ error: "Failed to update order", details: error.message });
     }
 };
 
@@ -180,10 +298,10 @@ export const getCompletedOrders = async (req, res) => {
     try {
         const completedOrders = await prisma.order.findMany({
             where: { status: "Completed" },
-            orderBy: { createdAt: "desc"}
+            orderBy: { createdAt: "desc" }
         })
         res.json(completedOrders);
-    }catch(error){
-        res.json(500).json({error: "Failed to fetch completed orders."})
+    } catch (error) {
+        res.json(500).json({ error: "Failed to fetch completed orders." })
     }
 }

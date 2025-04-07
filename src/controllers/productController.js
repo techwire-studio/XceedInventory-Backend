@@ -1,6 +1,7 @@
 import { addProduct } from '../services/productService.js';
 import importCSV from '../services/csvImport.js';
 import prisma from '../config/db.js';
+import fs from 'fs';
 export const createProduct = async (req, res) => {
     try {
         const product = await addProduct(req.body);
@@ -21,9 +22,13 @@ export const uploadCSV = async (req, res) => {
     try {
         await importCSV(req.file.path, importMode);
         // Delete file after successful import
-        // fs.unlink(req.file.path, (err) => {
-        //     if (err) console.error("Error deleting file:", err);
-        // });
+        fs.unlink(req.file.path, (err) => {
+            if (err) {
+                console.error("Error deleting file:", err);
+            } else {
+                console.log(`Successfully deleted file: ${req.file.path}`);
+            }
+        });
         res.json({ message: `CSV imported successfully in ${importMode} mode!` });
     } catch (error) {
         res.status(500).json({ error: "Import failed", details: error.message });
