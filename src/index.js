@@ -5,6 +5,7 @@ import orderRoutes from "./routes/orderRoutes.js";
 import authRoutes from './routes/authRoutes.js';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
+import superAdminRoutes from './routes/superAdminRoutes.js'
 
 dotenv.config();
 const app = express();
@@ -25,6 +26,7 @@ app.get('/', (req, res) => {
 app.use('/api/products', productRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/auth", authRoutes);
+app.use('/api/admin', superAdminRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

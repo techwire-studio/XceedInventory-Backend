@@ -39,10 +39,11 @@ model Order {
   @@index([status])
 }
 model Admin {
-    id        String  @id @default(uuid())
-    username  String  @unique
-    password  String
-    superAdmin Boolean @default(false)
+  id         String  @id @default(uuid())
+  username   String  @unique
+  email      String  @unique
+  password   String
+  superAdmin Boolean @default(false)
 }
 
 
