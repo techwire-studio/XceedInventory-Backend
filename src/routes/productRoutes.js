@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { createProduct, uploadCSV, getAllProducts, searchProducts } from '../controllers/productController.js';
+import { createProduct, uploadCSV, getAllProducts, searchProducts, getCategories, getProductsByCategory } from '../controllers/productController.js';
 import { authenticateAdmin, authenticateSuperAdmin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -13,5 +13,7 @@ router.post('/upload', authenticateAdmin, authenticateSuperAdmin, upload.single(
 //public routes
 router.get('/all-products', getAllProducts);
 router.get('/search', searchProducts);
+router.get('/categories', getCategories)
+router.get('/get-product/:id', getProductsByCategory);
 
 export default router;

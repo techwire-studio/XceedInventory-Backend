@@ -8,16 +8,29 @@ datasource db {
 }
 
 model Product {
-  id             String   @id 
+  id             String    @id 
   source         String?
-  mainCategory   String?
-  category       String?
-  subCategory    String?
+  categoryId     String?   // Foreign key to Categories
+  category       Categories? @relation(fields: [categoryId], references: [id]) // Relation to Categories
   name           String?
   datasheetLink  String?
   description    String?
   specifications Json?  
-  createdAt      DateTime @default(now()) // Automatically stores creation time
+  createdAt      DateTime  @default(now())
+  @@index([categoryId]) // Index for fast filtering by category
+}
+
+model Categories {
+  id            String    @id @default(cuid())
+  mainCategory  String
+  category      String
+  subCategory   String?
+  products      Product[] // One-to-many relation with Product
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  @@unique([mainCategory, category, subCategory]) // Ensure unique category combinations
+  @@index([mainCategory]) // Index for fast filtering by mainCategory
+  @@index([mainCategory, category]) // Composite index for mainCategory + category
 }
 model Order {
   id             String   @id @default(cuid())
