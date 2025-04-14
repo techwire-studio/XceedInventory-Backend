@@ -5,9 +5,10 @@ const seedSuperAdmin = async () => {
     const username = process.env.USER_NAME;
     const password = process.env.PASSWORD;
     const email = process.env.EMAIL;
+    const name = process.env.NAME;
 
-    if (!username || !password || !email) {
-        console.error("Username, password, and email must be provided in environment variables.");
+    if (!username || !password || !email || !name) {
+        console.error("Username, password, name and email must be provided in environment variables.");
         process.exit(1);
     }
 
@@ -28,6 +29,7 @@ const seedSuperAdmin = async () => {
     await prisma.admin.create({
         data: {
             username,
+            name,
             email,
             password: hashedPassword,
             superAdmin: true
