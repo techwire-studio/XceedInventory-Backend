@@ -44,8 +44,9 @@ export const adminLogin = async (req, res) => {
 export const adminLogout = (req, res) => {
     res.clearCookie("token", {
         httpOnly: true,
-        sameSite: "None",
-        secure: process.env.NODE_ENV === "production"
+        secure: true,      
+        sameSite: "None",  
+        path: '/'
     });
     res.json({ message: "Logout successful" });
 };
