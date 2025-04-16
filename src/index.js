@@ -10,7 +10,7 @@ import superAdminRoutes from './routes/superAdminRoutes.js'
 dotenv.config();
 const app = express();
 
-const allowedOrigins = [process.env.FRONTEND_URL, 'http://localhost:5173']; // Add localhost for local dev
+const allowedOrigins = [process.env.FRONTEND_URL, 'http://localhost:5173', process.env.FRONTEND_URL_INVENTORY];
 
 app.use(cors({
   origin: function (origin, callback) {
