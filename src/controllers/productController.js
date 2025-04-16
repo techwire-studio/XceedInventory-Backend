@@ -49,25 +49,38 @@ export const getAllProducts = async (req, res) => {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
         const skip = (page - 1) * limit;
-        // Fetch paginated products sorted by `createdAt` (newest first), and break ties using `id`
+
+        // Fetch paginated products
         const products = await prisma.product.findMany({
             skip,
             take: limit,
             orderBy: [
                 { createdAt: 'desc' },
                 { id: 'asc' }
-            ]
+            ],
+            include: {
+                category: {
+                    select: {
+                        mainCategory: true,
+                        category: true,
+                        subCategory: true
+                    }
+                }
+            }
         });
+
         // Get total product count
         const totalProducts = await prisma.product.count();
 
         // Calculate total pages
         const totalPages = Math.ceil(totalProducts / limit);
 
+        // Handle invalid page number request
         if (page > totalPages && totalProducts > 0) {
             return res.status(400).json({ error: "Page number exceeds total pages" });
         }
 
+        // Send the response
         res.status(200).json({
             products,
             totalProducts,
