@@ -1,5 +1,6 @@
 import bcrypt from 'bcrypt';
 import prisma from '../config/db.js';
+import 'dotenv/config';
 
 const seedSuperAdmin = async () => {
     const username = process.env.USER_NAME;
