@@ -16,6 +16,7 @@ model Product {
   datasheetLink  String?
   description    String?
   specifications Json?  
+  addedToCart   Boolean? @default(false)
   createdAt      DateTime  @default(now())
   @@index([categoryId]) // Index for fast filtering by category
 }
