@@ -142,42 +142,90 @@ export const getCategories = async (req, res) => {
         // Fetch all categories from the database
         const categories = await prisma.categories.findMany({
             select: {
-                id: true,           // Category ID
+                id: true,
                 mainCategory: true,
                 category: true,
                 subCategory: true,
             },
         });
 
-        // Transform the flat list into a nested structure
+        // First-pass: Create the category structure with counts
+        const categoryStats = {};
         const categoryMap = {};
 
+        // Count categories and subcategories
         categories.forEach((cat) => {
-            // If mainCategory doesn't exist, initialize it
-            if (!categoryMap[cat.mainCategory]) {
+            // Initialize main category stats if needed
+            if (!categoryStats[cat.mainCategory]) {
+                categoryStats[cat.mainCategory] = {
+                    categoryCount: 0,
+                    categories: {}
+                };
                 categoryMap[cat.mainCategory] = {};
             }
 
-            // If category doesn't exist under mainCategory, initialize it
-            if (!categoryMap[cat.mainCategory][cat.category]) {
+            // Initialize category if needed and count subcategories
+            if (!categoryStats[cat.mainCategory].categories[cat.category]) {
+                categoryStats[cat.mainCategory].categories[cat.category] = {
+                    subCategoryCount: 0
+                };
+                categoryStats[cat.mainCategory].categoryCount++;
                 categoryMap[cat.mainCategory][cat.category] = [];
             }
 
-            // Add subCategory with its ID
+            categoryStats[cat.mainCategory].categories[cat.category].subCategoryCount++;
+
+            // Store the category entry
             categoryMap[cat.mainCategory][cat.category].push({
                 id: cat.id,
-                subCategory: cat.subCategory || null, // Handle cases where subCategory is optional
+                subCategory: cat.subCategory || null,
             });
         });
 
-        // Convert the map into an array for the frontend
-        const formattedCategories = Object.entries(categoryMap).map(([mainCategory, categories]) => ({
-            mainCategory,
-            categories: Object.entries(categories).map(([category, subCategories]) => ({
-                category,
-                subCategories,
-            })),
-        }));
+        // Second-pass: Format according to special rules
+        const formattedCategories = [];
+
+        Object.keys(categoryMap).forEach(mainCategory => {
+            const mainCategoryData = {
+                mainCategory,
+                categories: []
+            };
+
+            const categoriesInMain = categoryMap[mainCategory];
+            const stats = categoryStats[mainCategory];
+
+            // Case 1: Main category has only one category
+            if (stats.categoryCount === 1) {
+                const singleCategoryName = Object.keys(categoriesInMain)[0];
+                const subCategories = categoriesInMain[singleCategoryName];
+
+                // Add subcategories directly to main category
+                if (subCategories.length > 1) {
+                    mainCategoryData.categories = subCategories;
+                } else if (subCategories.length == 1) {
+                    mainCategoryData.id = subCategories[0].id; // If only one subcategory
+                    mainCategoryData.categories = null;
+                }
+            }
+            // Normal case: Main category has multiple categories
+            else {
+                Object.keys(categoriesInMain).forEach(categoryName => {
+                    const subCategories = categoriesInMain[categoryName];
+                    const categoryData = { category: categoryName };
+
+                    // Case 2: Category has only one subcategory
+                    if (subCategories.length === 1) {
+                        categoryData.id = subCategories[0].id;
+                    } else {
+                        categoryData.subCategories = subCategories;
+                    }
+
+                    mainCategoryData.categories.push(categoryData);
+                });
+            }
+
+            formattedCategories.push(mainCategoryData);
+        });
 
         res.status(200).json({
             message: "Categories fetched successfully",
@@ -187,7 +235,6 @@ export const getCategories = async (req, res) => {
         res.status(500).json({ error: "Failed to fetch categories", details: e.message });
     }
 };
-
 export const getProductsByCategory = async (req, res) => {
     try {
         const { id } = req.params; // Category ID from the URL
