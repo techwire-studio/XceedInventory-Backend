@@ -18,6 +18,7 @@ model Product {
   specifications Json?  
   addedToCart   Boolean? @default(false)
   createdAt      DateTime  @default(now())
+  updatedAt      DateTime @updatedAt
   @@index([categoryId]) // Index for fast filtering by category
 }
 

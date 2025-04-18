@@ -15,14 +15,14 @@ export const addProduct = async (data) => {
     } = data;
 
 
-    if (!mainCategory || mainCategory === "-") {
+    if (!mainCategory) {
         throw new Error("mainCategory is required.");
     }
-    if (!category || category === "-") {
+    if (!category) {
         throw new Error("category is required.");
     }
 
-    const actualSubCategory = subCategory && subCategory !== "-" ? subCategory : null;
+    const actualSubCategory = subCategory? subCategory : null;
 
     const categoryRecord = await prisma.categories.upsert({
         where: {

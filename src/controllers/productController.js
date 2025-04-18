@@ -335,3 +335,130 @@ export const getProductsByCategory = async (req, res) => {
         });
     }
 };
+
+export const deleteProduct = async (req, res) => {
+    const { id } = req.params;
+
+    if (!id) {
+        return res.status(400).json({ error: "Product ID is required." });
+    }
+
+    try {
+        // Attempt to delete the product
+        await prisma.product.delete({
+            where: { id: id },
+        });
+
+        res.status(200).json({ message: `Product with ID ${id} deleted successfully.` });
+
+    } catch (error) {
+        // Handle case where the product doesn't exist
+        if (error.code === 'P2025') {
+            return res.status(404).json({ error: `Product with ID ${id} not found.` });
+        }
+        // Handle other potential database or unexpected errors
+        console.error("Error deleting product:", error);
+        res.status(500).json({ error: 'Failed to delete product', details: error.message });
+    }
+};
+
+
+export const updateProduct = async (req, res) => {
+    const { id } = req.params;
+    const data = req.body;
+
+    if (!id) {
+        return res.status(400).json({ error: "Product ID is required." });
+    }
+
+    const {
+        source,
+        name,
+        mainCategory,
+        category,
+        subCategory,
+        datasheetLink,
+        description,
+        addedToCart,
+        ...specificationsData
+    } = data;
+
+    try {
+        const updateData = {};
+
+        if (mainCategory !== undefined || category !== undefined || subCategory !== undefined) {
+            const effectiveMainCategory = mainCategory;
+            const effectiveCategory = category;
+
+            if (effectiveMainCategory !== "-" && (!effectiveMainCategory || typeof effectiveMainCategory !== 'string' || effectiveMainCategory.trim() === '')) {
+                return res.status(400).json({ error: "mainCategory must be a non-empty string or '-' if updating category information." });
+            }
+            if (effectiveCategory !== "-" && (!effectiveCategory || typeof effectiveCategory !== 'string' || effectiveCategory.trim() === '')) {
+                return res.status(400).json({ error: "category must be a non-empty string or '-' if updating category information." });
+            }
+
+            const mainCatForDb = effectiveMainCategory;
+            const catForDb = effectiveCategory;
+            const actualSubCategory = (subCategory === undefined || subCategory === null) ? null : subCategory;
+
+            // Find or create the category based on the unique combination
+            const categoryRecord = await prisma.categories.upsert({
+                where: {
+                    mainCategory_category_subCategory: {
+                        mainCategory: mainCatForDb,
+                        category: catForDb,
+                        subCategory: actualSubCategory,
+                    }
+                },
+                update: {},
+                create: {
+                    mainCategory: mainCatForDb,
+                    category: catForDb,
+                    subCategory: actualSubCategory,
+                },
+            });
+            updateData.categoryId = categoryRecord.id;
+        }
+
+        if (source !== undefined) updateData.source = source === "-" ? "-" : (source || null);
+        if (name !== undefined) updateData.name = name === "-" ? "-" : (name || null);
+        if (datasheetLink !== undefined) updateData.datasheetLink = datasheetLink === "-" ? "-" : (datasheetLink || null);
+        if (description !== undefined) updateData.description = description === "-" ? "-" : (description || null);
+        if (addedToCart !== undefined && typeof addedToCart === 'boolean') {
+            updateData.addedToCart = addedToCart;
+        }
+
+        // This will overwrite the entire specifications JSON field with the new data.
+        if (Object.keys(specificationsData).length > 0) {
+            updateData.specifications = specificationsData;
+        }
+
+        if (Object.keys(updateData).length === 0) {
+            return res.status(400).json({ error: "No valid fields provided for update. Nothing changed." });
+        }
+
+        // Perform the update operation in the database
+        const updatedProduct = await prisma.product.update({
+            where: { id: id }, // Specify which product to update
+            data: updateData, // Provide the data payload containing only the fields to change
+            include: {
+                category: {
+                    select: {
+                        mainCategory: true,
+                        category: true,
+                        subCategory: true
+                    }
+                }
+            }
+        });
+
+        res.status(200).json({ message: `Product with ID ${id} updated successfully.`, product: updatedProduct });
+
+    } catch (error) {
+        if (error.code === 'P2025') {
+            return res.status(404).json({ error: `Product with ID ${id} not found.` });
+        }
+        console.error("Error updating product:", error);
+        res.status(500).json({ error: 'Failed to update product', details: error.message });
+    }
+};
