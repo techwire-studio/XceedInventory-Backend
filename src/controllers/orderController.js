@@ -1,7 +1,7 @@
 import prisma from "../config/db.js";
 import firestore from "../config/firebase.js";
 import { v4 as uuidv4 } from "uuid";
-
+import { sendOrderNotificationToAdmins } from '../utils/mailer.js';
 // Helper function to back up order data to Firebase
 const backupOrderToFirebase = async (order) => {
     try {
@@ -90,7 +90,24 @@ export const createOrder = async (req, res) => {
         });
 
         backupOrderToFirebase(newOrder);
-
+        try {
+            const adminsToNotify = await prisma.admin.findMany({
+                select: { email: true }
+            });
+            const adminEmails = adminsToNotify.map(admin => admin.email);
+            if (adminEmails.length > 0) {
+                const customerName = `${newOrder.firstName} ${newOrder.lastName || ''}`.trim();
+                sendOrderNotificationToAdmins({
+                    recipients: adminEmails,
+                    orderId: newOrder.orderId,
+                    customerName: customerName
+                });
+            } else {
+                console.log("No admins found in the database to notify.");
+            }
+        } catch (emailError) {
+            console.error("Failed to send order notification email to admins:", emailError);
+        }
         res.status(201).json(newOrder);
     } catch (error) {
         console.error(error);
