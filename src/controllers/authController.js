@@ -56,7 +56,6 @@ export const verifyToken = (req, res) => {
     console.log(token)
     let username;
     let role;
-    console.log("Token:", token);
     if (!token) {
         return res.status(403).json({ error: "Access denied. No token provided." });
     }
