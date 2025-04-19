@@ -65,6 +65,8 @@ export const verifyToken = (req, res) => {
             return res.status(403).json({ error: "Invalid token" });
         }
         username = decoded.username;
+        console.log("Decoded Token:", decoded);
+        role = decoded.superAdmin ? "Super Admin" : "Admin";
     })
-    res.json({ username, message: "Token is valid" });
+    res.json({ username, role, message: "Token is valid" });
 }
