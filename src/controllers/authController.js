@@ -44,8 +44,8 @@ export const adminLogin = async (req, res) => {
 export const adminLogout = (req, res) => {
     res.clearCookie("token", {
         httpOnly: true,
-        secure: true,      
-        sameSite: "None",  
+        secure: true,
+        sameSite: "None",
         path: '/'
     });
     res.json({ message: "Logout successful" });
@@ -56,8 +56,8 @@ export const verifyToken = (req, res) => {
     console.log(token)
     let username;
     let role;
-
-    if(!token){
+    console.log("Token:", token);
+    if (!token) {
         return res.status(403).json({ error: "Access denied. No token provided." });
     }
     jwt.verify(token, SECRET_KEY, (err, decoded) => {
