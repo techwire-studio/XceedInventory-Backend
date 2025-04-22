@@ -63,4 +63,31 @@ model Admin {
   createdAt  DateTime @default(now())
 }
 
+model CareerApplication {
+  id             String   @id @default(cuid())
+  firstName      String
+  lastName       String?
+  phoneNumber    String
+  email          String
+  areaOfInterest String
+  referred       Boolean  @default(false) // Assuming 'Yes' maps to true, 'No' to false
+  resumeUrl      String?  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
+  @@index([email])
+}
+
+model ContactInquiry {
+  id              String   @id @default(cuid())
+  fullName        String
+  companyName     String?
+  phoneNumber     String
+  email           String
+  productCategory String?
+  message         String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+   @@index([email])
+}

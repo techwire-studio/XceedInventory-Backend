@@ -1,5 +1,5 @@
 import prisma from "../config/db.js";
-import firestore from "../config/firebase.js";
+import { db as firestore } from "../config/firebase.js";
 import { v4 as uuidv4 } from "uuid";
 import { sendOrderNotificationToAdmins } from '../utils/mailer.js';
 // Helper function to back up order data to Firebase
