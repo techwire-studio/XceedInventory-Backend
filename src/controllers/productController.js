@@ -169,39 +169,55 @@ export const getCategories = async (req, res) => {
                 mainCategory: true,
                 category: true,
                 subCategory: true,
+                _count: {
+                    select: {
+                        products: true,
+                    }
+                }
             },
         });
 
         // First-pass: Create the category structure with counts
         const categoryStats = {};
         const categoryMap = {};
+        const mainCategoryTotalProducts = {};
 
-        // Count categories and subcategories
+        // Count categories, subcategories, and products
         categories.forEach((cat) => {
+            const productCount = cat._count.products || 0;
+            const mainCat = cat.mainCategory;
+            const category = cat.category;
+
             // Initialize main category stats if needed
-            if (!categoryStats[cat.mainCategory]) {
-                categoryStats[cat.mainCategory] = {
+            if (!categoryStats[mainCat]) {
+                categoryStats[mainCat] = {
                     categoryCount: 0,
-                    categories: {}
+                    categories: {},
+                    totalProducts: 0
                 };
-                categoryMap[cat.mainCategory] = {};
+                categoryMap[mainCat] = {};
+                mainCategoryTotalProducts[mainCat] = 0;
             }
 
             // Initialize category if needed and count subcategories
-            if (!categoryStats[cat.mainCategory].categories[cat.category]) {
-                categoryStats[cat.mainCategory].categories[cat.category] = {
-                    subCategoryCount: 0
+            if (!categoryStats[mainCat].categories[category]) {
+                categoryStats[mainCat].categories[category] = {
+                    subCategoryCount: 0,
+                    totalProducts: 0
                 };
-                categoryStats[cat.mainCategory].categoryCount++;
-                categoryMap[cat.mainCategory][cat.category] = [];
+                categoryStats[mainCat].categoryCount++;
+                categoryMap[mainCat][category] = [];
             }
 
-            categoryStats[cat.mainCategory].categories[cat.category].subCategoryCount++;
+            categoryStats[mainCat].categories[category].subCategoryCount++;
+            categoryStats[mainCat].categories[category].totalProducts += productCount;
+            mainCategoryTotalProducts[mainCat] += productCount;
 
             // Store the category entry
-            categoryMap[cat.mainCategory][cat.category].push({
+            categoryMap[mainCat][category].push({
                 id: cat.id,
                 subCategory: cat.subCategory || null,
+                productCount
             });
         });
 
@@ -209,9 +225,15 @@ export const getCategories = async (req, res) => {
         const formattedCategories = [];
 
         Object.keys(categoryMap).forEach(mainCategory => {
+            // Skip main categories with zero products
+            if (mainCategoryTotalProducts[mainCategory] === 0) {
+                return;
+            }
+
             const mainCategoryData = {
                 mainCategory,
-                categories: []
+                categories: [],
+                productCount: mainCategoryTotalProducts[mainCategory]
             };
 
             const categoriesInMain = categoryMap[mainCategory];
@@ -221,12 +243,15 @@ export const getCategories = async (req, res) => {
             if (stats.categoryCount === 1) {
                 const singleCategoryName = Object.keys(categoriesInMain)[0];
                 const subCategories = categoriesInMain[singleCategoryName];
+                const categoryProductCount = stats.categories[singleCategoryName].totalProducts;
 
                 // Add subcategories directly to main category
                 if (subCategories.length > 1) {
-                    mainCategoryData.categories = subCategories;
-                } else if (subCategories.length == 1) {
+                    // Filter out subcategories with zero products
+                    mainCategoryData.categories = subCategories.filter(sub => sub.productCount > 0);
+                } else if (subCategories.length === 1) {
                     mainCategoryData.id = subCategories[0].id; // If only one subcategory
+                    mainCategoryData.productCount = subCategories[0].productCount;
                     mainCategoryData.categories = null;
                 }
             }
@@ -234,13 +259,25 @@ export const getCategories = async (req, res) => {
             else {
                 Object.keys(categoriesInMain).forEach(categoryName => {
                     const subCategories = categoriesInMain[categoryName];
-                    const categoryData = { category: categoryName };
+                    const categoryProductCount = stats.categories[categoryName].totalProducts;
+
+                    // Skip categories with zero products
+                    if (categoryProductCount === 0) {
+                        return;
+                    }
+
+                    const categoryData = {
+                        category: categoryName,
+                        productCount: categoryProductCount
+                    };
 
                     // Case 2: Category has only one subcategory
                     if (subCategories.length === 1) {
                         categoryData.id = subCategories[0].id;
+                        categoryData.productCount = subCategories[0].productCount;
                     } else {
-                        categoryData.subCategories = subCategories;
+                        // Filter out subcategories with zero products
+                        categoryData.subCategories = subCategories.filter(sub => sub.productCount > 0);
                     }
 
                     mainCategoryData.categories.push(categoryData);
