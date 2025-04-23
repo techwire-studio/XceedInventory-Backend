@@ -9,17 +9,27 @@ datasource db {
 
 model Product {
   id             String    @id 
+  cpn            String?   @default("-")  
   source         String?
   categoryId     String?   // Foreign key to Categories
   category       Categories? @relation(fields: [categoryId], references: [id]) // Relation to Categories
   name           String?
   datasheetLink  String?
   description    String?
-  specifications Json?  
-  addedToCart   Boolean? @default(false)
+  specifications Json?
+  addedToCart    Boolean?  @default(false)
   createdAt      DateTime  @default(now())
-  updatedAt      DateTime @updatedAt
-  @@index([categoryId]) // Index for fast filtering by category
+  updatedAt      DateTime  @updatedAt
+  manufacturer   String?   @default("-")
+  mfrPartNumber  String?   @default("-")
+  stockQty       Int?
+  spq            Int?
+  moq            Int?
+  ltwks          String?   @default("-")
+  remarks        String?   @default("-")
+  @@index([categoryId])
+  @@index([manufacturer])
+  @@index([mfrPartNumber])
 }
 
 model Categories {

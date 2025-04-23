@@ -2,6 +2,16 @@ import { addProduct } from '../services/productService.js';
 import importCSV from '../services/csvImport.js';
 import prisma from '../config/db.js';
 import fs from 'fs';
+
+
+const parseIntOrNull = (value) => {
+    if (value === undefined || value === null || value === '') {
+        return null;
+    }
+    const parsed = parseInt(value, 10);
+    return isNaN(parsed) ? null : parsed;
+};
+
 export const createProduct = async (req, res) => {
     try {
         const product = await addProduct(req.body);
@@ -251,33 +261,24 @@ export const getCategories = async (req, res) => {
 export const getProductsByCategory = async (req, res) => {
     try {
         const { id } = req.params; // Category ID from the URL
-        const page = parseInt(req.query.page) || 1; // Default to page 1
-        const limit = parseInt(req.query.limit) || 20; // Default to 20 items per page
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
 
-        // Validate the ID
         if (!id) {
             return res.status(400).json({ error: "Category ID is required" });
         }
-
-        // Validate pagination parameters
         if (page < 1 || limit < 1) {
             return res.status(400).json({ error: "Page and limit must be positive integers" });
         }
 
-        // Calculate the number of items to skip
         const skip = (page - 1) * limit;
 
-        // Fetch total number of products for this category
         const totalProducts = await prisma.product.count({
-            where: {
-                categoryId: id,
-            },
+            where: { categoryId: id },
         });
 
-        // Calculate total pages
         const totalPages = Math.ceil(totalProducts / limit);
 
-        // Check if the requested page exceeds total pages
         if (page > totalPages && totalProducts > 0) {
             return res.status(400).json({ error: "Page number exceeds total pages" });
         }
@@ -289,10 +290,20 @@ export const getProductsByCategory = async (req, res) => {
             },
             select: {
                 id: true,
+                cpn: true,
                 name: true,
+                source: true,
+                manufacturer: true,
+                mfrPartNumber: true,
+                stockQty: true,
+                spq: true,
+                moq: true,
+                ltwks: true,
+                remarks: true,
                 datasheetLink: true,
                 description: true,
                 specifications: true,
+                addedToCart: true,
                 createdAt: true,
                 category: {
                     select: {
@@ -302,15 +313,14 @@ export const getProductsByCategory = async (req, res) => {
                     },
                 },
             },
-            skip, // Number of items to skip
-            take: limit, // Number of items to take
+            skip,
+            take: limit,
             orderBy: [
-                { createdAt: "desc" }, // Sort by creation date, newest first
-                { id: "asc" },         // Break ties with ID
+                { createdAt: "desc" },
+                { id: "asc" },
             ],
         });
 
-        // If no products are found, return an empty array with pagination metadata
         if (!products.length && totalProducts === 0) {
             return res.status(200).json({
                 message: "No products found for this category",
@@ -329,12 +339,14 @@ export const getProductsByCategory = async (req, res) => {
             currentPage: page,
         });
     } catch (error) {
+        console.error("Error fetching products by category:", error);
         res.status(500).json({
-            error: "Failed to fetch products",
+            error: "Failed to fetch products by category",
             details: error.message,
         });
     }
 };
+
 
 export const deleteProduct = async (req, res) => {
     const { id } = req.params;
@@ -370,7 +382,6 @@ export const updateProduct = async (req, res) => {
     if (!id) {
         return res.status(400).json({ error: "Product ID is required." });
     }
-
     const {
         source,
         name,
@@ -380,6 +391,14 @@ export const updateProduct = async (req, res) => {
         datasheetLink,
         description,
         addedToCart,
+        cpn,
+        manufacturer,
+        mfrPartNumber,
+        stockQty,
+        spq,
+        moq,
+        ltwks,
+        remarks,
         ...specificationsData
     } = data;
 
@@ -399,9 +418,9 @@ export const updateProduct = async (req, res) => {
 
             const mainCatForDb = effectiveMainCategory;
             const catForDb = effectiveCategory;
-            const actualSubCategory = (subCategory === undefined || subCategory === null) ? null : subCategory;
+            const actualSubCategory = (subCategory === undefined || subCategory === null || subCategory === "-") ? null : subCategory;
 
-            // Find or create the category based on the unique combination
+
             const categoryRecord = await prisma.categories.upsert({
                 where: {
                     mainCategory_category_subCategory: {
@@ -420,27 +439,36 @@ export const updateProduct = async (req, res) => {
             updateData.categoryId = categoryRecord.id;
         }
 
+        if (cpn !== undefined) updateData.cpn = (cpn === null || cpn === '') ? "-" : cpn;
         if (source !== undefined) updateData.source = source === "-" ? "-" : (source || null);
-        if (name !== undefined) updateData.name = name === "-" ? "-" : (name || null);
+        if (name !== undefined) updateData.name = (name === null || name === '') ? "-" : name;
         if (datasheetLink !== undefined) updateData.datasheetLink = datasheetLink === "-" ? "-" : (datasheetLink || null);
         if (description !== undefined) updateData.description = description === "-" ? "-" : (description || null);
+        if (manufacturer !== undefined) updateData.manufacturer = (manufacturer === null || manufacturer === '') ? "-" : manufacturer;
+        if (mfrPartNumber !== undefined) updateData.mfrPartNumber = (mfrPartNumber === null || mfrPartNumber === '') ? "-" : mfrPartNumber;
+        if (stockQty !== undefined) updateData.stockQty = parseIntOrNull(stockQty);
+        if (spq !== undefined) updateData.spq = parseIntOrNull(spq);
+        if (moq !== undefined) updateData.moq = parseIntOrNull(moq);
+        if (ltwks !== undefined) updateData.ltwks = (ltwks === null || ltwks === '') ? "-" : ltwks;
+        if (remarks !== undefined) updateData.remarks = (remarks === null || remarks === '') ? "-" : remarks;
         if (addedToCart !== undefined && typeof addedToCart === 'boolean') {
             updateData.addedToCart = addedToCart;
         }
 
-        // This will overwrite the entire specifications JSON field with the new data.
         if (Object.keys(specificationsData).length > 0) {
             updateData.specifications = specificationsData;
+        } else if (data.hasOwnProperty('specifications') && data.specifications === null) {
+            updateData.specifications = null;
         }
+
 
         if (Object.keys(updateData).length === 0) {
             return res.status(400).json({ error: "No valid fields provided for update. Nothing changed." });
         }
 
-        // Perform the update operation in the database
         const updatedProduct = await prisma.product.update({
-            where: { id: id }, // Specify which product to update
-            data: updateData, // Provide the data payload containing only the fields to change
+            where: { id: id },
+            data: updateData,
             include: {
                 category: {
                     select: {
