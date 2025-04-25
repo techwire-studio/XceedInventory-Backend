@@ -527,3 +527,121 @@ export const updateProduct = async (req, res) => {
         res.status(500).json({ error: 'Failed to update product', details: error.message });
     }
 };
+
+export const getProductsByMainCategory = async (req, res) => {
+    try {
+        const { mainCategory } = req.body;
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+
+        if (!mainCategory) {
+            return res.status(400).json({ error: "Main category is required" });
+        }
+        if (page < 1 || limit < 1) {
+            return res.status(400).json({ error: "Page and limit must be positive integers" });
+        }
+        let categories;
+        if(mainCategory === "Schottky-Thyristor"){
+            categories = await prisma.categories.findMany({
+                where: {
+                    mainCategory: { in: ["Schottky", "Thyristor"] }
+                },
+                select: {
+                    id: true
+                }
+            })
+        }else{
+            categories = await prisma.categories.findMany({
+                where: {
+                    mainCategory: mainCategory
+                },
+                select: {
+                    id: true
+                }
+            });
+        }
+
+        if (!categories.length) {
+            return res.status(200).json({
+                message: "No categories found for this main category",
+                products: [],
+                totalProducts: 0,
+                totalPages: 0,
+                currentPage: page
+            });
+        }
+
+        // Get category IDs
+        const categoryIds = categories.map(category => category.id);
+
+        // Count total products across all matching categories
+        const totalProducts = await prisma.product.count({
+            where: {
+                categoryId: {
+                    in: categoryIds
+                }
+            }
+        });
+
+        const totalPages = Math.ceil(totalProducts / limit);
+        const skip = (page - 1) * limit;
+
+        if (page > totalPages && totalProducts > 0) {
+            return res.status(400).json({ error: "Page number exceeds total pages" });
+        }
+
+        // Fetch paginated products from all matching categories
+        const products = await prisma.product.findMany({
+            where: {
+                categoryId: {
+                    in: categoryIds
+                }
+            },
+            select: {
+                id: true,
+                cpn: true,
+                name: true,
+                source: true,
+                manufacturer: true,
+                mfrPartNumber: true,
+                stockQty: true,
+                spq: true,
+                moq: true,
+                ltwks: true,
+                remarks: true,
+                datasheetLink: true,
+                description: true,
+                specifications: true,
+                addedToCart: true,
+                createdAt: true,
+                category: {
+                    select: {
+                        mainCategory: true,
+                        category: true,
+                        subCategory: true,
+                    },
+                },
+            },
+            skip,
+            take: limit,
+            orderBy: [
+                { createdAt: "desc" },
+                { id: "asc" },
+            ],
+        });
+
+        res.status(200).json({
+            message: "Products fetched successfully",
+            products,
+            totalProducts,
+            totalPages,
+            currentPage: page
+        });
+    } catch (error) {
+        console.error("Error fetching products by main category:", error);
+        res.status(500).json({
+            error: "Failed to fetch products by main category",
+            details: error.message
+        });
+    }
+};

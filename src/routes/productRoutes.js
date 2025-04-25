@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { createProduct, uploadCSV, getAllProducts, searchProducts, getCategories, getProductsByCategory, deleteProduct, updateProduct } from '../controllers/productController.js';
+import { createProduct, uploadCSV, getAllProducts, searchProducts, getCategories, getProductsByCategory, deleteProduct, updateProduct, getProductsByMainCategory } from '../controllers/productController.js';
 import { authenticateAdmin, authenticateSuperAdmin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -18,5 +18,6 @@ router.get('/all-products', getAllProducts);
 router.get('/search', searchProducts);
 router.get('/categories', getCategories)
 router.get('/get-product/:id', getProductsByCategory);
+router.post('/by-main-category', getProductsByMainCategory);
 
 export default router;
