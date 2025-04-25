@@ -295,11 +295,100 @@ export const getCategories = async (req, res) => {
         res.status(500).json({ error: "Failed to fetch categories", details: e.message });
     }
 };
+// export const getProductsByCategory = async (req, res) => {
+//     try {
+//         const { id } = req.params; // Category ID from the URL
+//         const page = parseInt(req.query.page) || 1;
+//         const limit = parseInt(req.query.limit) || 20;
+
+//         if (!id) {
+//             return res.status(400).json({ error: "Category ID is required" });
+//         }
+//         if (page < 1 || limit < 1) {
+//             return res.status(400).json({ error: "Page and limit must be positive integers" });
+//         }
+
+//         const skip = (page - 1) * limit;
+
+//         const totalProducts = await prisma.product.count({
+//             where: { categoryId: id },
+//         });
+
+//         const totalPages = Math.ceil(totalProducts / limit);
+
+//         if (page > totalPages && totalProducts > 0) {
+//             return res.status(400).json({ error: "Page number exceeds total pages" });
+//         }
+
+//         // Fetch paginated products associated with the categoryId
+//         const products = await prisma.product.findMany({
+//             where: {
+//                 categoryId: id,
+//             },
+//             select: {
+//                 id: true,
+//                 cpn: true,
+//                 name: true,
+//                 source: true,
+//                 manufacturer: true,
+//                 mfrPartNumber: true,
+//                 stockQty: true,
+//                 spq: true,
+//                 moq: true,
+//                 ltwks: true,
+//                 remarks: true,
+//                 datasheetLink: true,
+//                 description: true,
+//                 specifications: true,
+//                 addedToCart: true,
+//                 createdAt: true,
+//                 category: {
+//                     select: {
+//                         mainCategory: true,
+//                         category: true,
+//                         subCategory: true,
+//                     },
+//                 },
+//             },
+//             skip,
+//             take: limit,
+//             orderBy: [
+//                 { createdAt: "desc" },
+//                 { id: "asc" },
+//             ],
+//         });
+
+//         if (!products.length && totalProducts === 0) {
+//             return res.status(200).json({
+//                 message: "No products found for this category",
+//                 products: [],
+//                 totalProducts: 0,
+//                 totalPages: 0,
+//                 currentPage: page,
+//             });
+//         }
+
+//         res.status(200).json({
+//             message: "Products fetched successfully",
+//             products,
+//             totalProducts,
+//             totalPages,
+//             currentPage: page,
+//         });
+//     } catch (error) {
+//         console.error("Error fetching products by category:", error);
+//         res.status(500).json({
+//             error: "Failed to fetch products by category",
+//             details: error.message,
+//         });
+//     }
+// };
 export const getProductsByCategory = async (req, res) => {
     try {
         const { id } = req.params; // Category ID from the URL
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
+        const query = req.query.query?.trim(); // Get search query
 
         if (!id) {
             return res.status(400).json({ error: "Category ID is required" });
@@ -310,70 +399,86 @@ export const getProductsByCategory = async (req, res) => {
 
         const skip = (page - 1) * limit;
 
+        const whereClause = {
+            categoryId: id,
+        };
+
+        if (query) {
+            let searchKey = null;
+            let searchValue = null;
+            if (query.includes(':')) {
+                const parts = query.split(':', 2);
+                if (parts.length === 2 && parts[0].trim() && parts[1].trim()) {
+                    searchKey = parts[0].trim();
+                    searchValue = parts[1].trim();
+                    console.log(`Detected key-value search: Key='${searchKey}', Value='${searchValue}'`);
+                }
+            }
+
+            if (searchKey !== null && searchValue !== null) {
+                const numericValue = parseFloat(searchValue);
+                const isNumeric = !isNaN(numericValue);
+
+                whereClause.AND = [
+                    {
+                        OR: [
+                            {
+                                specifications: {
+                                    path: [searchKey],
+                                    equals: searchValue,
+                                }
+                            },
+                            ...(isNumeric ? [{
+                                specifications: {
+                                    path: [searchKey],
+                                    equals: numericValue
+                                }
+                            }] : [])
+                        ]
+                    }
+                ];
+
+            } else {
+                // If not key:value format, search only the 'name' field
+                whereClause.OR = [
+                    { name: { contains: query, mode: 'insensitive' } },
+                ];
+            }
+        }
+        console.log("Executing count with WHERE:", JSON.stringify(whereClause, null, 2));
         const totalProducts = await prisma.product.count({
-            where: { categoryId: id },
+            where: whereClause,
         });
 
         const totalPages = Math.ceil(totalProducts / limit);
 
         if (page > totalPages && totalProducts > 0) {
-            return res.status(400).json({ error: "Page number exceeds total pages" });
+            return res.status(400).json({ error: "Page number exceeds total pages for the current filter/search" });
         }
 
-        // Fetch paginated products associated with the categoryId
+        console.log("Executing findMany with WHERE:", JSON.stringify(whereClause, null, 2));
         const products = await prisma.product.findMany({
-            where: {
-                categoryId: id,
-            },
+            where: whereClause,
             select: {
-                id: true,
-                cpn: true,
-                name: true,
-                source: true,
-                manufacturer: true,
-                mfrPartNumber: true,
-                stockQty: true,
-                spq: true,
-                moq: true,
-                ltwks: true,
-                remarks: true,
-                datasheetLink: true,
-                description: true,
-                specifications: true,
-                addedToCart: true,
-                createdAt: true,
+                id: true, cpn: true, name: true, source: true, manufacturer: true,
+                mfrPartNumber: true, stockQty: true, spq: true, moq: true,
+                ltwks: true, remarks: true, datasheetLink: true, description: true,
+                specifications: true, addedToCart: true, createdAt: true,
                 category: {
-                    select: {
-                        mainCategory: true,
-                        category: true,
-                        subCategory: true,
-                    },
+                    select: { mainCategory: true, category: true, subCategory: true },
                 },
             },
             skip,
             take: limit,
-            orderBy: [
-                { createdAt: "desc" },
-                { id: "asc" },
-            ],
+            orderBy: [{ createdAt: "desc" }, { id: "asc" },],
         });
 
-        if (!products.length && totalProducts === 0) {
-            return res.status(200).json({
-                message: "No products found for this category",
-                products: [],
-                totalProducts: 0,
-                totalPages: 0,
-                currentPage: page,
-            });
-        }
+        const message = totalProducts === 0
+            ? (query ? "No products found matching your search in this category" : "No products found for this category")
+            : "Products fetched successfully";
 
         res.status(200).json({
-            message: "Products fetched successfully",
-            products,
-            totalProducts,
-            totalPages,
-            currentPage: page,
+            message, products, totalProducts, totalPages, currentPage: page,
         });
     } catch (error) {
         console.error("Error fetching products by category:", error);
@@ -541,7 +646,7 @@ export const getProductsByMainCategory = async (req, res) => {
             return res.status(400).json({ error: "Page and limit must be positive integers" });
         }
         let categories;
-        if(mainCategory === "Schottky-Thyristor"){
+        if (mainCategory === "Schottky-Thyristor") {
             categories = await prisma.categories.findMany({
                 where: {
                     mainCategory: { in: ["Schottky", "Thyristor"] }
@@ -550,7 +655,7 @@ export const getProductsByMainCategory = async (req, res) => {
                     id: true
                 }
             })
-        }else{
+        } else {
             categories = await prisma.categories.findMany({
                 where: {
                     mainCategory: mainCategory
