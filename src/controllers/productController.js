@@ -638,6 +638,7 @@ export const getProductsByMainCategory = async (req, res) => {
         const { mainCategory } = req.body;
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
+        const query = req.query.query?.trim(); // Get search query
 
         if (!mainCategory) {
             return res.status(400).json({ error: "Main category is required" });
@@ -645,6 +646,7 @@ export const getProductsByMainCategory = async (req, res) => {
         if (page < 1 || limit < 1) {
             return res.status(400).json({ error: "Page and limit must be positive integers" });
         }
+
         let categories;
         if (mainCategory === "Schottky-Thyristor") {
             categories = await prisma.categories.findMany({
@@ -654,7 +656,7 @@ export const getProductsByMainCategory = async (req, res) => {
                 select: {
                     id: true
                 }
-            })
+            });
         } else {
             categories = await prisma.categories.findMany({
                 where: {
@@ -679,29 +681,69 @@ export const getProductsByMainCategory = async (req, res) => {
         // Get category IDs
         const categoryIds = categories.map(category => category.id);
 
-        // Count total products across all matching categories
-        const totalProducts = await prisma.product.count({
-            where: {
-                categoryId: {
-                    in: categoryIds
+        // Build where clause
+        const whereClause = {
+            categoryId: {
+                in: categoryIds
+            }
+        };
+
+        if (query) {
+            let searchKey = null;
+            let searchValue = null;
+            if (query.includes(':')) {
+                const parts = query.split(':', 2);
+                if (parts.length === 2 && parts[0].trim() && parts[1].trim()) {
+                    searchKey = parts[0].trim();
+                    searchValue = parts[1].trim();
+                    console.log(`Detected key-value search: Key='${searchKey}', Value='${searchValue}'`);
                 }
             }
+
+            if (searchKey !== null && searchValue !== null) {
+                const numericValue = parseFloat(searchValue);
+                const isNumeric = !isNaN(numericValue);
+
+                whereClause.AND = [
+                    {
+                        OR: [
+                            {
+                                specifications: {
+                                    path: [searchKey],
+                                    equals: searchValue,
+                                }
+                            },
+                            ...(isNumeric ? [{
+                                specifications: {
+                                    path: [searchKey],
+                                    equals: numericValue
+                                }
+                            }] : [])
+                        ]
+                    }
+                ];
+            } else {
+                whereClause.OR = [
+                    { name: { contains: query, mode: 'insensitive' } },
+                ];
+            }
+        }
+
+        console.log("Executing count with WHERE:", JSON.stringify(whereClause, null, 2));
+        const totalProducts = await prisma.product.count({
+            where: whereClause,
         });
 
         const totalPages = Math.ceil(totalProducts / limit);
         const skip = (page - 1) * limit;
 
         if (page > totalPages && totalProducts > 0) {
-            return res.status(400).json({ error: "Page number exceeds total pages" });
+            return res.status(400).json({ error: "Page number exceeds total pages for the current filter/search" });
         }
 
-        // Fetch paginated products from all matching categories
+        console.log("Executing findMany with WHERE:", JSON.stringify(whereClause, null, 2));
         const products = await prisma.product.findMany({
-            where: {
-                categoryId: {
-                    in: categoryIds
-                }
-            },
+            where: whereClause,
             select: {
                 id: true,
                 cpn: true,
@@ -735,8 +777,12 @@ export const getProductsByMainCategory = async (req, res) => {
             ],
         });
 
+        const message = totalProducts === 0
+            ? (query ? "No products found matching your search in this main category" : "No products found for this main category")
+            : "Products fetched successfully";
+
         res.status(200).json({
-            message: "Products fetched successfully",
+            message,
             products,
             totalProducts,
             totalPages,
