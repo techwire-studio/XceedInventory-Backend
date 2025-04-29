@@ -11,7 +11,7 @@ import formRoutes from './routes/formRoutes.js';
 dotenv.config();
 const app = express();
 
-const allowedOrigins = ['https://xceedfrontendd.vercel.app', 'http://localhost:5173', 'https://xceedinventoryfrontend.vercel.app'];
+const allowedOrigins = ['https://xceedfrontendd.vercel.app', 'http://localhost:5173', 'https://xceedinventoryfrontend.vercel.app', 'https://xceedelectronics.com', 'https://inventory.xceedelectronics.com'];
 
 app.use(cors({
   origin: function (origin, callback) {
