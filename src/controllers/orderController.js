@@ -329,15 +329,22 @@ export const updateOrderDetails = async (req, res) => {
     }
 };
 
-// Fetch Orders
+// Fetch Orders with fromAddress populated
 export const getOrders = async (req, res) => {
     try {
-        const orders = await prisma.order.findMany({ orderBy: { createdAt: "desc" } });
+        const orders = await prisma.order.findMany({
+            orderBy: { createdAt: "desc" },
+            include: {
+                fromAddress: true, // Populates the related FromAddress object
+            },
+        });
         res.json(orders);
     } catch (error) {
+        console.error("Error fetching orders:", error);
         res.status(500).json({ error: "Failed to fetch orders." });
     }
 };
+
 
 // Fetch the completed orders
 export const getCompletedOrders = async (req, res) => {
