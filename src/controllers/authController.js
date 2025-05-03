@@ -19,7 +19,7 @@ export const adminLogin = async (req, res) => {
         }
 
         const token = jwt.sign(
-            { id: admin.id, username: admin.username, superAdmin: admin.superAdmin },
+            { id: admin.id, username: admin.username, superAdmin: admin.superAdmin, email: admin.email, name:admin.name, createdAt: admin.createdAt },
             SECRET_KEY,
             { expiresIn: "2h" }
         );
@@ -34,6 +34,9 @@ export const adminLogin = async (req, res) => {
         res.json({
             message: "Login successful",
             username: admin.username,
+            email: admin.email,
+            name: admin.name,
+            createdAt: admin.createdAt,
             role: admin.superAdmin ? "Super Admin" : "Admin"
         });
     } catch (error) {
@@ -55,6 +58,9 @@ export const verifyToken = (req, res) => {
     const token = req.cookies?.token;
     console.log(token)
     let username;
+    let name;
+    let email;
+    let createdAt;
     let role;
     if (!token) {
         return res.status(403).json({ error: "Access denied. No token provided." });
@@ -63,8 +69,12 @@ export const verifyToken = (req, res) => {
         if (err) {
             return res.status(403).json({ error: "Invalid token" });
         }
+        console.log(decoded)
         username = decoded.username;
+        name = decoded.name;
+        email = decoded.email;
+        createdAt = decoded.createdAt;
         role = decoded.superAdmin ? "Super Admin" : "Admin";
     })
-    res.json({ username, role, message: "Token is valid" });
+    res.json({ username, role, message: "Token is valid", name, email, createdAt });
 }

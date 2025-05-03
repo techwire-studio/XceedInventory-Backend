@@ -5,8 +5,18 @@ import bcrypt from 'bcrypt';
 
 export const createAdmin = async (req, res) => {
     try {
-        const { email, name } = req.body;
-
+        const { email, name, role } = req.body;
+        let superAdminBool;
+        if (role === undefined) {
+            return res.status(400).json({ error: 'Super admin status is required' });
+        }
+        if(role == "Super Admin") {
+            superAdminBool = true;
+        }
+        else {
+            superAdminBool = false;
+        }
+        console.log("Super admin status:", superAdminBool);
         if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
             return res.status(400).json({ error: 'Valid email is required' });
         }
@@ -33,7 +43,7 @@ export const createAdmin = async (req, res) => {
                 password: hashedPassword,
                 email,
                 name,
-                superAdmin: false
+                superAdmin: superAdminBool,
             }
         });
         await sendAdminCredentials({ to: email, username, password });
