@@ -160,141 +160,141 @@ export const searchProducts = async (req, res) => {
     }
 };
 
-export const getCategories = async (req, res) => {
-    try {
-        // Fetch all categories from the database
-        const categories = await prisma.categories.findMany({
-            select: {
-                id: true,
-                mainCategory: true,
-                category: true,
-                subCategory: true,
-                _count: {
-                    select: {
-                        products: true,
-                    }
-                }
-            },
-        });
+// export const getCategories = async (req, res) => {
+//     try {
+//         // Fetch all categories from the database
+//         const categories = await prisma.categories.findMany({
+//             select: {
+//                 id: true,
+//                 mainCategory: true,
+//                 category: true,
+//                 subCategory: true,
+//                 _count: {
+//                     select: {
+//                         products: true,
+//                     }
+//                 }
+//             },
+//         });
 
-        // First-pass: Create the category structure with counts
-        const categoryStats = {};
-        const categoryMap = {};
-        const mainCategoryTotalProducts = {};
+//         // First-pass: Create the category structure with counts
+//         const categoryStats = {};
+//         const categoryMap = {};
+//         const mainCategoryTotalProducts = {};
 
-        // Count categories, subcategories, and products
-        categories.forEach((cat) => {
-            const productCount = cat._count.products || 0;
-            const mainCat = cat.mainCategory;
-            const category = cat.category;
+//         // Count categories, subcategories, and products
+//         categories.forEach((cat) => {
+//             const productCount = cat._count.products || 0;
+//             const mainCat = cat.mainCategory;
+//             const category = cat.category;
 
-            // Initialize main category stats if needed
-            if (!categoryStats[mainCat]) {
-                categoryStats[mainCat] = {
-                    categoryCount: 0,
-                    categories: {},
-                    totalProducts: 0
-                };
-                categoryMap[mainCat] = {};
-                mainCategoryTotalProducts[mainCat] = 0;
-            }
+//             // Initialize main category stats if needed
+//             if (!categoryStats[mainCat]) {
+//                 categoryStats[mainCat] = {
+//                     categoryCount: 0,
+//                     categories: {},
+//                     totalProducts: 0
+//                 };
+//                 categoryMap[mainCat] = {};
+//                 mainCategoryTotalProducts[mainCat] = 0;
+//             }
 
-            // Initialize category if needed and count subcategories
-            if (!categoryStats[mainCat].categories[category]) {
-                categoryStats[mainCat].categories[category] = {
-                    subCategoryCount: 0,
-                    totalProducts: 0
-                };
-                categoryStats[mainCat].categoryCount++;
-                categoryMap[mainCat][category] = [];
-            }
+//             // Initialize category if needed and count subcategories
+//             if (!categoryStats[mainCat].categories[category]) {
+//                 categoryStats[mainCat].categories[category] = {
+//                     subCategoryCount: 0,
+//                     totalProducts: 0
+//                 };
+//                 categoryStats[mainCat].categoryCount++;
+//                 categoryMap[mainCat][category] = [];
+//             }
 
-            categoryStats[mainCat].categories[category].subCategoryCount++;
-            categoryStats[mainCat].categories[category].totalProducts += productCount;
-            mainCategoryTotalProducts[mainCat] += productCount;
+//             categoryStats[mainCat].categories[category].subCategoryCount++;
+//             categoryStats[mainCat].categories[category].totalProducts += productCount;
+//             mainCategoryTotalProducts[mainCat] += productCount;
 
-            // Store the category entry
-            categoryMap[mainCat][category].push({
-                id: cat.id,
-                subCategory: cat.subCategory || null,
-                productCount
-            });
-        });
+//             // Store the category entry
+//             categoryMap[mainCat][category].push({
+//                 id: cat.id,
+//                 subCategory: cat.subCategory || null,
+//                 productCount
+//             });
+//         });
 
-        // Second-pass: Format according to special rules
-        const formattedCategories = [];
+//         // Second-pass: Format according to special rules
+//         const formattedCategories = [];
 
-        Object.keys(categoryMap).forEach(mainCategory => {
-            // Skip main categories with zero products
-            if (mainCategoryTotalProducts[mainCategory] === 0) {
-                return;
-            }
+//         Object.keys(categoryMap).forEach(mainCategory => {
+//             // Skip main categories with zero products
+//             if (mainCategoryTotalProducts[mainCategory] === 0) {
+//                 return;
+//             }
 
-            const mainCategoryData = {
-                mainCategory,
-                categories: [],
-                productCount: mainCategoryTotalProducts[mainCategory]
-            };
+//             const mainCategoryData = {
+//                 mainCategory,
+//                 categories: [],
+//                 productCount: mainCategoryTotalProducts[mainCategory]
+//             };
 
-            const categoriesInMain = categoryMap[mainCategory];
-            const stats = categoryStats[mainCategory];
+//             const categoriesInMain = categoryMap[mainCategory];
+//             const stats = categoryStats[mainCategory];
 
-            // Case 1: Main category has only one category
-            if (stats.categoryCount === 1) {
-                const singleCategoryName = Object.keys(categoriesInMain)[0];
-                const subCategories = categoriesInMain[singleCategoryName];
-                const categoryProductCount = stats.categories[singleCategoryName].totalProducts;
+//             // Case 1: Main category has only one category
+//             if (stats.categoryCount === 1) {
+//                 const singleCategoryName = Object.keys(categoriesInMain)[0];
+//                 const subCategories = categoriesInMain[singleCategoryName];
+//                 const categoryProductCount = stats.categories[singleCategoryName].totalProducts;
 
-                // Add subcategories directly to main category
-                if (subCategories.length > 1) {
-                    // Filter out subcategories with zero products
-                    mainCategoryData.categories = subCategories.filter(sub => sub.productCount > 0);
-                } else if (subCategories.length === 1) {
-                    mainCategoryData.id = subCategories[0].id; // If only one subcategory
-                    mainCategoryData.productCount = subCategories[0].productCount;
-                    mainCategoryData.categories = null;
-                }
-            }
-            // Normal case: Main category has multiple categories
-            else {
-                Object.keys(categoriesInMain).forEach(categoryName => {
-                    const subCategories = categoriesInMain[categoryName];
-                    const categoryProductCount = stats.categories[categoryName].totalProducts;
+//                 // Add subcategories directly to main category
+//                 if (subCategories.length > 1) {
+//                     // Filter out subcategories with zero products
+//                     mainCategoryData.categories = subCategories.filter(sub => sub.productCount > 0);
+//                 } else if (subCategories.length === 1) {
+//                     mainCategoryData.id = subCategories[0].id; // If only one subcategory
+//                     mainCategoryData.productCount = subCategories[0].productCount;
+//                     mainCategoryData.categories = null;
+//                 }
+//             }
+//             // Normal case: Main category has multiple categories
+//             else {
+//                 Object.keys(categoriesInMain).forEach(categoryName => {
+//                     const subCategories = categoriesInMain[categoryName];
+//                     const categoryProductCount = stats.categories[categoryName].totalProducts;
 
-                    // Skip categories with zero products
-                    if (categoryProductCount === 0) {
-                        return;
-                    }
+//                     // Skip categories with zero products
+//                     if (categoryProductCount === 0) {
+//                         return;
+//                     }
 
-                    const categoryData = {
-                        category: categoryName,
-                        productCount: categoryProductCount
-                    };
+//                     const categoryData = {
+//                         category: categoryName,
+//                         productCount: categoryProductCount
+//                     };
 
-                    // Case 2: Category has only one subcategory
-                    if (subCategories.length === 1) {
-                        categoryData.id = subCategories[0].id;
-                        categoryData.productCount = subCategories[0].productCount;
-                    } else {
-                        // Filter out subcategories with zero products
-                        categoryData.subCategories = subCategories.filter(sub => sub.productCount > 0);
-                    }
+//                     // Case 2: Category has only one subcategory
+//                     if (subCategories.length === 1) {
+//                         categoryData.id = subCategories[0].id;
+//                         categoryData.productCount = subCategories[0].productCount;
+//                     } else {
+//                         // Filter out subcategories with zero products
+//                         categoryData.subCategories = subCategories.filter(sub => sub.productCount > 0);
+//                     }
 
-                    mainCategoryData.categories.push(categoryData);
-                });
-            }
+//                     mainCategoryData.categories.push(categoryData);
+//                 });
+//             }
 
-            formattedCategories.push(mainCategoryData);
-        });
+//             formattedCategories.push(mainCategoryData);
+//         });
 
-        res.status(200).json({
-            message: "Categories fetched successfully",
-            data: formattedCategories,
-        });
-    } catch (e) {
-        res.status(500).json({ error: "Failed to fetch categories", details: e.message });
-    }
-};
+//         res.status(200).json({
+//             message: "Categories fetched successfully",
+//             data: formattedCategories,
+//         });
+//     } catch (e) {
+//         res.status(500).json({ error: "Failed to fetch categories", details: e.message });
+//     }
+// };
 // export const getProductsByCategory = async (req, res) => {
 //     try {
 //         const { id } = req.params; // Category ID from the URL
@@ -383,6 +383,92 @@ export const getCategories = async (req, res) => {
 //         });
 //     }
 // };
+
+export const getCategories = async (req, res) => {
+    try {
+        // Fetch all categories from the database
+        const categories = await prisma.categories.findMany({
+            select: {
+                id: true,
+                mainCategory: true,
+                category: true,
+                subCategory: true,
+                _count: {
+                    select: {
+                        products: true,
+                    }
+                }
+            },
+        });
+
+        // Build category structure
+        const formattedCategories = [];
+
+        const mainCategoryMap = {};
+
+        categories.forEach(cat => {
+            const productCount = cat._count.products || 0;
+            const { mainCategory, category, subCategory, id } = cat;
+
+            // Initialize mainCategory if not present
+            if (!mainCategoryMap[mainCategory]) {
+                mainCategoryMap[mainCategory] = {
+                    mainCategory,
+                    productCount: 0,
+                    categories: {},
+                };
+            }
+
+            // Initialize category under mainCategory
+            if (!mainCategoryMap[mainCategory].categories[category]) {
+                mainCategoryMap[mainCategory].categories[category] = {
+                    category,
+                    productCount: 0,
+                    subCategories: [],
+                };
+            }
+
+            // Update product counts
+            mainCategoryMap[mainCategory].productCount += productCount;
+            mainCategoryMap[mainCategory].categories[category].productCount += productCount;
+
+            // Push subcategory
+            mainCategoryMap[mainCategory].categories[category].subCategories.push({
+                id,
+                subCategory: subCategory || null,
+                productCount,
+            });
+        });
+
+        // Format into the desired output
+        Object.values(mainCategoryMap).forEach(mainCatData => {
+            const formattedMainCategory = {
+                mainCategory: mainCatData.mainCategory,
+                productCount: mainCatData.productCount,
+                categories: [],
+            };
+
+            Object.values(mainCatData.categories).forEach(catData => {
+                formattedMainCategory.categories.push({
+                    category: catData.category,
+                    productCount: catData.productCount,
+                    subCategories: catData.subCategories,
+                });
+            });
+
+            formattedCategories.push(formattedMainCategory);
+        });
+
+        res.status(200).json({
+            message: "Categories fetched successfully",
+            data: formattedCategories,
+        });
+    } catch (e) {
+        res.status(500).json({ error: "Failed to fetch categories", details: e.message });
+    }
+};
+
+
 export const getProductsByCategory = async (req, res) => {
     try {
         const { id } = req.params; // Category ID from the URL
