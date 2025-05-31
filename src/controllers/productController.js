@@ -2,6 +2,7 @@ import { addProduct } from '../services/productService.js';
 import importCSV from '../services/csvImport.js';
 import prisma from '../config/db.js';
 import fs from 'fs';
+import axios from 'axios';
 
 
 const parseIntOrNull = (value) => {
@@ -114,26 +115,8 @@ export const searchProducts = async (req, res) => {
             return res.status(400).json({ error: "Query parameter is required" });
         }
 
-        // Count total matching products
-        const totalProducts = await prisma.product.count({
-            where: {
-                OR: [
-                    { name: { contains: query, mode: 'insensitive' } },
-                    { id: query }
-                ]
-            }
-        });
-
-        // Calculate total pages
-        const totalPages = Math.ceil(totalProducts / limit);
-
-        // Prevent fetching non-existent pages
-        if (page > totalPages && totalProducts > 0) {
-            return res.status(400).json({ error: "Page number exceeds total pages" });
-        }
-
-        // Fetch products
-        const products = await prisma.product.findMany({
+        // Fetch products from local database
+        const localProducts = await prisma.product.findMany({
             where: {
                 OR: [
                     { name: { contains: query, mode: 'insensitive' } },
@@ -148,8 +131,66 @@ export const searchProducts = async (req, res) => {
             ]
         });
 
+        // Extract part numbers from local products
+        const localPartNumbers = localProducts.map(product => product.id);
+
+        // Fetch products from Waldom API
+        const apiKey = 'a2d4c938-d2ea-4046-b327-b2198cee175c';
+        const waldomUrl = `https://sandbox.waldomapac.com/api/v1/${apiKey}/InventoryAndPricing/${encodeURIComponent(query)}/0/0/20`;
+        let apiProducts = [];
+        
+        try {
+            const response = await axios.get(waldomUrl);
+            console.log('Waldom API response:', response.data);
+            if (response.data.products && Array.isArray(response.data.products)) {
+                apiProducts = response.data.products
+                    .filter(product => !localPartNumbers.includes(product.PartNumber))
+                    .map(product => ({
+                        id: product.PartNumber,
+                        name: product.PartNumber || product.Description,
+                        specifications: {
+                            Manufacturer: product.ManufacturerName || '-',
+                            LeadTime: product.LeadTime || '-',
+                            MinOrderQuantity: product.MinOrderQuantity || '-',
+                            StandardPackQuantity: product.StandardPackQuantity || '-',
+                            TotalStockQuantity: product.TotalStockQuantity?.toString() || '0',
+                            Rohs: product.Rohs || '-',
+                            HTSCode: product.HTSCode || '-'
+                        },
+                        datasheetLink: product.DataSheetLink || null,
+                        imageLink: product.ImageLink || null,
+                        pricing: product.Pricing?.PriceBreaks.map(breakPoint => ({
+                            quantity: breakPoint.PriceBreakQuantity,
+                            price: breakPoint.Price
+                        })) || []
+                    }));
+            }
+        } catch (apiError) {
+            console.error('Waldom API error:', apiError.message);
+            // Continue with local products even if API fails
+        }
+        console.log('Api products fetched:', apiProducts.length);
+        // Combine local and API products
+        const combinedProducts = [...localProducts, ...apiProducts];
+
+        // Count total matching products (local only for pagination consistency)
+        const totalProducts = await prisma.product.count({
+            where: {
+                OR: [
+                    { name: { contains: query, mode: 'insensitive' } },
+                    { id: query }
+                ]
+            }
+        }) + apiProducts.length;
+
+        // Calculate total pages
+        const totalPages = Math.ceil(totalProducts / limit);
+
+        // Apply pagination to combined products
+        const paginatedProducts = combinedProducts.slice(skip, skip + limit);
+
         res.status(200).json({
-            products,
+            products: paginatedProducts,
             totalProducts,
             totalPages,
             currentPage: page
