@@ -14,12 +14,16 @@ const backupOrderToFirebase = async (order) => {
 
 // Create Order
 export const createOrder = async (req, res) => {
+    const clientId = req.client?.id;
+
+    if (!clientId) {
+        console.error("Error in createOrder: Client ID missing from request after authentication.");
+        return res.status(403).json({ error: "User authentication issue. Client ID not found." });
+    }
+
     try {
         const { firstName, lastName, phoneNumber, products, email } = req.body;
 
-        // ---------------------
-        // Input Validations
-        // ---------------------
         if (!firstName || typeof firstName !== 'string' || !/^[A-Za-z]+$/.test(firstName.trim())) {
             return res.status(400).json({ error: 'First name is required and must contain only alphabets.' });
         }
@@ -46,9 +50,6 @@ export const createOrder = async (req, res) => {
             return res.status(400).json({ error: 'Each product must have a valid productId.' });
         }
 
-        // ---------------------
-        // Product Validation
-        // ---------------------
         const existingProducts = await prisma.product.findMany({
             where: { id: { in: productIds } }
         });
@@ -68,28 +69,26 @@ export const createOrder = async (req, res) => {
             if (!matchingProduct) return p;
 
             if (p.productName && p.productName !== matchingProduct.name) {
-                throw new Error(`Product name mismatch for ID ${p.productId}. Expected: ${matchingProduct.name}`);
+                throw new Error(`Product name mismatch for ID ${p.productId}. Expected: ${matchingProduct.name}, Got: ${p.productName}`);
             }
-
-            return { ...p, productName: matchingProduct.name };
+            return { ...p, productName: matchingProduct.name || p.productName };
         });
 
-        // ---------------------
-        // Create Order
-        // ---------------------
         const newOrder = await prisma.order.create({
             data: {
                 orderId: `${Math.floor(1000 + Math.random() * 9000)}`,
-                firstName,
-                lastName: lastName || null,
-                phoneNumber,
-                email,
+                firstName: firstName.trim(),
+                lastName: lastName ? lastName.trim() : null,
+                phoneNumber: phoneNumber.trim(),
+                email: email.trim().toLowerCase(),
                 products: updatedProducts,
-                status: 'Pending'
+                status: 'Pending',
+                clientId: clientId,
             }
         });
 
         backupOrderToFirebase(newOrder);
+
         try {
             const adminsToNotify = await prisma.admin.findMany({
                 select: { email: true }
@@ -103,18 +102,22 @@ export const createOrder = async (req, res) => {
                     customerName: customerName
                 });
             } else {
-                console.log("No admins found in the database to notify.");
+                console.log("No admins found in the database to notify for new order.");
             }
         } catch (emailError) {
-            console.error("Failed to send order notification email to admins:", emailError);
+            console.error("Failed to send new order notification email to admins:", emailError);
         }
-        res.status(201).json(newOrder);
+
+        res.status(201).json({ message: "Order placed successfully. Awaiting payment.", order: newOrder });
+
     } catch (error) {
-        console.error(error);
+        console.error("Error creating order:", error);
+        if (error.message.startsWith('Product name mismatch')) {
+            return res.status(400).json({ error: error.message });
+        }
         res.status(500).json({ error: error.message || 'Server error while placing the order.' });
     }
 };
-
 // Update Order Status
 export const updateOrderStatus = async (req, res) => {
     try {

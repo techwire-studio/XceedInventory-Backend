@@ -57,10 +57,10 @@ model FromAddress {
 model Order {
   id             String   @id @default(cuid())
   orderId        String   @unique
-  firstName      String
-  lastName       String
+  firstName      String 
+  lastName       String 
   email          String?
-  phoneNumber    String
+  phoneNumber    String 
   products       Json
   totalAmount    Float?
   status         String   @default("Pending")
@@ -71,11 +71,21 @@ model Order {
   billingAddress Json?
   fromAddressId  String?
   fromAddress    FromAddress? @relation(fields: [fromAddressId], references: [id])
+
+  // Fields for Razorpay integration
+  paymentStatus    String?  @default("PENDING")
+  razorpayPaymentId String?  @unique
+  razorpayOrderId   String?  @unique
+  razorpaySignature String?
+  clientId       Int?   
+  client         Client?  @relation(fields: [clientId], references: [id])
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   @@index([status])
-  @@index([fromAddressId]) // ADD Index for the foreign key
+  @@index([fromAddressId])
+  @@index([razorpayOrderId])
+  @@index([clientId])
 }
 
 model Admin {
@@ -115,4 +125,17 @@ model ContactInquiry {
   updatedAt       DateTime @updatedAt
 
    @@index([email])
+}
+
+
+model Client {
+  id          Int     @id @default(autoincrement())
+  email       String   @unique
+  password    String
+  firstName   String?
+  lastName    String?
+  phoneNumber String?  @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  orders      Order[]
 }
